@@ -13,6 +13,7 @@ from basicsr.train import train_pipeline
 import realesrgan.archs
 import realesrgan.data
 import realesrgan.models
+import realesrgan.losses
 # from basicsr.data import DATASET_REGISTRY
 
 if __name__ == '__main__':

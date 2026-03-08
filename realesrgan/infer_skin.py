@@ -13,7 +13,7 @@ import os.path as osp
 import sys
 sys.path.append(r'/root/autodl-fs/vcolor/BasicSR')
 from basicsr.train import train_pipeline
-sys.path.append('/root/autodl-fs/vcolor/Real-ESRGAN')
+sys.path.append(r'/root/autodl-fs/vcolor/RealFaceAI')
 import realesrgan.archs
 import realesrgan.data
 import realesrgan.models
@@ -308,6 +308,9 @@ def eval(args,opt):
     
     network=load_mamba_model(args.model_path,opt)
 
+    inferh=1280
+    inferw=1024
+
     for i,control_path in enumerate(control_list):
         
         
@@ -324,10 +327,10 @@ def eval(args,opt):
         # gt_imagecv2=cv2.imread(gt_list[i])
         
         control_image_ori=cv2.imread(control_path)
-        control_image_ori_1024=cv2.resize(control_image_ori,(1024,1024))
+        control_image_ori_1024=cv2.resize(control_image_ori,(inferw,inferh))
 
 
-        condition_image=transform(cv2_to_pil(cv2.resize(control_image_ori,(1024,1024)))).unsqueeze(0).cuda()
+        condition_image=transform(cv2_to_pil(cv2.resize(control_image_ori,(inferw,inferh)))).unsqueeze(0).cuda()
         # ref_image=transform(cv2_to_pil(cv2.resize(ref_imagecv2,(1024,1024)))).unsqueeze(0).cuda()
         
 

@@ -24,7 +24,7 @@ from basicsr.data.degradations import circular_lowpass_kernel, random_mixed_kern
 from basicsr.data.transforms import augment
 from basicsr.utils import FileClient, get_root_logger, imfrombytes, img2tensor
 from basicsr.utils.registry import DATASET_REGISTRY
-
+from realesrgan.data.degrade_face_func  import DegradationPipeline,train_config
 
 
 # 取消最大像素限制
@@ -158,3 +158,109 @@ class SkinPairDataset(data.Dataset):
         # mask_tensor = mask_tensor[0].unsqueeze(0)
         
         return {"lq": lq_tensor, "gt": gt_tensor}
+
+
+@DATASET_REGISTRY.register()
+class HDFaceDataset(data.Dataset):
+    def __init__(self,opt, transform=None):
+        
+        self.opt = opt
+        lq_dir=  self.opt['lq_dir']
+        gt_dir= self.opt['gt_dir']
+        
+        self.whiteindtxt=self.opt['whiteindtxt']
+        
+        self.lq_images = self.load_source(lq_dir, (".png", ".jpg", ".jpeg"),self.whiteindtxt)
+        self.gt_images = self.load_source(gt_dir, (".png", ".jpg", ".jpeg"),self.whiteindtxt)
+        # self.mask_images = self.load_source(mask_dir, (".png", ".jpg", ".jpeg"),self.whiteindtxt)
+        
+
+        self.lq_images.sort()
+        self.gt_images.sort()
+        # self.mask_images.sort()
+
+        self.transform = transform if transform else transforms.ToTensor()
+
+        self.degpipeline = DegradationPipeline(train_config)
+        
+
+
+    def load_source(self, dir_list, suffixes=(".png", ".jpg", ".jpeg"),whiteindtxt=None):
+        if isinstance(dir_list, str):
+            dir_list = [dir_list]
+
+        if whiteindtxt is None:
+            whiteindtxt=[  None for cudir in dir_list]
+        
+        if isinstance(whiteindtxt, str):
+            whiteindtxt=[whiteindtxt]
+
+        image_paths = []
+        for i,directory in enumerate(dir_list):
+            # for suffix in suffixes:
+            curlist=get_all_files(directory, suffixes,whiteindtxt[i])
+            print('>>>>>>>>>>>>>>>>>>>>>>>>>  curlist:',directory,':',len(curlist))
+            image_paths.extend(curlist)
+        # exit(0)
+        return image_paths
+    
+    # def load_source(self, source, extensions):
+    #     if os.path.isdir(source):
+    #         return get_all_files(source, extensions)
+    #     elif os.path.isfile(source) and source.endswith(".txt"):
+    #         return read_txt_file(source)
+    #     else:
+    #         raise ValueError(f"Invalid source: {source}")
+
+    def __len__(self):
+        return len(self.lq_images)
+
+    def __getitem__(self, idx):
+        lq_path = self.lq_images[idx]
+        gt_path = self.gt_images[idx]
+
+        lq_image = cv2.cvtColor(imread_unicode(lq_path), cv2.COLOR_BGR2RGB)
+        gt_image = cv2.cvtColor(imread_unicode(gt_path), cv2.COLOR_BGR2RGB)
+
+        # #加入随机crop
+        # if random.random()<0.9: 
+        #     lq_image,gt_image,mask_image=random_crop_same_for_all([lq_image,gt_image,mask_image], min_scale=0.7, max_scale=1.0)
+
+
+        # lq_image,gt_image=tuple(random_horizontal_flip_list([lq_image,gt_image], prob=0.5))
+
+        resolutionh=1536
+        resolutionw=1280
+
+        # resolutionh=1280
+        # resolutionw=1024
+
+        # resolution=512
+        # resolution=768
+
+        lq_image=cv2.resize(lq_image,(resolutionw,resolutionh), interpolation=cv2.INTER_LANCZOS4)
+        gt_image=cv2.resize(gt_image,(resolutionw,resolutionh), interpolation=cv2.INTER_LANCZOS4)
+        # mask_image=cv2.resize(mask_image,(resolution,resolution))
+
+
+        lq_image=self.degpipeline.process(gt_image)
+        lq_image = (lq_image * 255.0).round().astype(np.uint8)
+
+        fh=1280
+        fw=1024
+        lq_image=cv2.resize(lq_image,(fw,fh), interpolation=cv2.INTER_LANCZOS4)
+        gt_image=cv2.resize(gt_image,(fw,fh), interpolation=cv2.INTER_LANCZOS4)
+
+
+        # lq_image=cv2.resize(lq_image,(resolutionw,resolutionh), interpolation=cv2.INTER_LANCZOS4)
+        # gt_image=cv2.resize(gt_image,(resolutionw,resolutionh), interpolation=cv2.INTER_LANCZOS4)
+
+        
+
+        lq_tensor = self.transform(lq_image)
+        gt_tensor = self.transform(gt_image)
+        # mask_tensor = self.transform(mask_image)
+        
+        # mask_tensor = mask_tensor[0].unsqueeze(0)
+        
+        return {"lq": lq_tensor, "gt": gt_tensor}  
